@@ -54,7 +54,7 @@ mcp = FastMCP(name = "Versa API Server", instructions="This server is used for a
 
 
 
-@mcp.resource("nextgen:///appliance/status?limit={limit}&offset={offset}")
+@mcp.tool()
 def get_all_appliance_status(limit, offset) -> str:
     """
     Get All Appliance Status
@@ -84,7 +84,7 @@ def get_all_appliance_status(limit, offset) -> str:
     return response.text
 
 
-@mcp.resource("nextgen:///appliance/status/{id}?byName={byName}")
+@mcp.tool()
 def get_single_appliance_status(id, byName) -> str:
     """
     Get Single Appliance Status
@@ -112,7 +112,7 @@ def get_single_appliance_status(id, byName) -> str:
     return response.text
 
 
-@mcp.resource("nextgen:///appliance/template_listing/{deviceName}?tenant={tenant}")
+@mcp.tool()
 def get_device_template_listing(deviceName, tenant) -> str:
     """
     Get Device Template Listing
@@ -140,7 +140,7 @@ def get_device_template_listing(deviceName, tenant) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///alltypes/workflow/templates/template/{templateworkflowName}")
+@mcp.tool()
 def get_template_workflow(templateworkflowName) -> str:
     """
     Get Template Workflow
@@ -158,7 +158,7 @@ def get_template_workflow(templateworkflowName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/appliance/location")
+@mcp.tool()
 def get_appliance_locations() -> str:
     """
     Get Appliance Locations
@@ -175,7 +175,7 @@ def get_appliance_locations() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///appliance/{applianceName}/routing-instances")
+@mcp.tool()
 def get_routing_instance_information(applianceName) -> str:
     """
     Get Routing Instance Information
@@ -193,7 +193,7 @@ def get_routing_instance_information(applianceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///appliance/appliance?offset={offset}&limit={limit}&type={type}&tags={tags}")
+@mcp.tool()
 def get_all_appliances_by_type_and_tags(offset, limit, type, tags) -> str:
     """
     Get All Appliances By Type and Tags
@@ -229,7 +229,7 @@ def get_all_appliances_by_type_and_tags(offset, limit, type, tags) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///appliance/appliance/lite?filterString={filterString}&limit={limit}&offset={offset}&org={org}&tags={tags}")
+@mcp.tool()
 def get_all_appliances_lite(filterString, limit, offset, org, tags) -> str:
     """
     Get All Appliances Lite
@@ -268,7 +268,7 @@ def get_all_appliances_lite(filterString, limit, offset, org, tags) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///appliance/appliance/liteView?exportToCSV={exportToCSV}&filterString={filterString}&limit={limit}&offset={offset}&org={org}&tags={tags}")
+@mcp.tool()
 def get_all_appliances_liteview(exportToCSV, filterString, limit, offset, org, tags) -> str:
     """
     Get All Appliances LiteView
@@ -310,7 +310,7 @@ def get_all_appliances_liteview(exportToCSV, filterString, limit, offset, org, t
     return response.text
 
 
-@mcp.resource("vnms:///appliance/applianceByName?limit={limit}&name={name}&offset={offset}")
+@mcp.tool()
 def search_appliance_by_name(limit, name, offset) -> str:
     """
     Search Appliance By Name
@@ -343,7 +343,7 @@ def search_appliance_by_name(limit, name, offset) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///appliance/export?applianceName={applianceName}&export-as-plain-text={export_as_plain_text}")
+@mcp.tool()
 def export_appliance_configuration(applianceName, export_as_plain_text) -> str:
     """
     Export Appliance Configuration
@@ -373,7 +373,7 @@ def export_appliance_configuration(applianceName, export_as_plain_text) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///appliance/summary?filterByName={filterByName}")
+@mcp.tool()
 def get_appliances_summary(filterByName) -> str:
     """
     Get Appliances Summary
@@ -400,7 +400,7 @@ def get_appliances_summary(filterByName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///audit/logs?limit={limit}&offset={offset}&searchKey={searchKey}")
+@mcp.tool()
 def get_audit_logs(limit, offset, searchKey) -> str:
     """
     Get Audit Logs
@@ -433,7 +433,7 @@ def get_audit_logs(limit, offset, searchKey) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///sdwan/workflow/devices?filters={filters}&limit={limit}&offset={offset}&orgname={orgname}")
+@mcp.tool()
 def device_workflow_fetch_all(filters, limit, offset, orgname) -> str:
     """
     Device WorkFlow Fetch All
@@ -469,7 +469,7 @@ def device_workflow_fetch_all(filters, limit, offset, orgname) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///sdwan/workflow/devices/device/{deviceName}")
+@mcp.tool()
 def get_specific_device_workflow(deviceName) -> str:
     """
     Get Specific Device WorkFlow
@@ -487,7 +487,7 @@ def get_specific_device_workflow(deviceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///sdwan/workflow/binddata/devices/header/template/{templateName}?organization={organization}")
+@mcp.tool()
 def get_template_bind_data_header_and_count(templateName, organization) -> str:
     """
     Get Template Bind Data Header and Count
@@ -515,7 +515,7 @@ def get_template_bind_data_header_and_count(templateName, organization) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///sdwan/workflow/templates?limit={limit}&offset={offset}&orgname={orgname}&searchKeyword={searchKeyword}")
+@mcp.tool()
 def template_fetch_all(limit, offset, orgname, searchKeyword) -> str:
     """
     Template Fetch All
@@ -551,7 +551,7 @@ def template_fetch_all(limit, offset, orgname, searchKeyword) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///sdwan/workflow/templates/template/{templateworkflowName}")
+@mcp.tool()
 def get_specific_template_workflow(templateworkflowName) -> str:
     """
     Get Specific Template WorkFlow
@@ -569,7 +569,7 @@ def get_specific_template_workflow(templateworkflowName) -> str:
     return response.text
 
 
-@mcp.resource("nextgen:///deviceGroup?filters={filters}&limit={limit}&offset={offset}&organization={organization}")
+@mcp.tool()
 def device_group_fetch_all(filters, limit, offset, organization) -> str:
     """
     Device Group Fetch All
@@ -605,7 +605,7 @@ def device_group_fetch_all(filters, limit, offset, organization) -> str:
     return response.text
 
 
-@mcp.resource("nextgen:///deviceGroup/{deviceGroupName}")
+@mcp.tool()
 def get_specific_device_group(deviceGroupName) -> str:
     """
     Get Specific Device Group
@@ -623,7 +623,7 @@ def get_specific_device_group(deviceGroupName) -> str:
     return response.text
 
 
-@mcp.resource("nextgen:///deviceGroup/modelNumbers")
+@mcp.tool()
 def get_all_model_numbers() -> str:
     """
     Get All Model Numbers
@@ -640,7 +640,7 @@ def get_all_model_numbers() -> str:
     return response.text
 
 
-@mcp.resource("nextgen:///device/{deviceName}")
+@mcp.tool()
 def show_templates_associated_to_device(deviceName) -> str:
     """
     Show Templates Associated to Device
@@ -658,7 +658,7 @@ def show_templates_associated_to_device(deviceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///assets/asset?filters={filters}&limit={limit}&offset={offset}&organization={organization}")
+@mcp.tool()
 def get_all_assets(filters, limit, offset, organization) -> str:
     """
     Get All Assets
@@ -694,7 +694,7 @@ def get_all_assets(filters, limit, offset, organization) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/appliance/next_page_data?filters={filters}&offset={offset}&queryId={queryId}")
+@mcp.tool()
 def get_next_page_data(filters, offset, queryId) -> str:
     """
     Get Next Page Data
@@ -727,7 +727,7 @@ def get_next_page_data(filters, offset, queryId) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/appliance/{Uuid}")
+@mcp.tool()
 def get_appliance_details_by_uuid(Uuid) -> str:
     """
     Get Appliance Details by UUID
@@ -745,7 +745,7 @@ def get_appliance_details_by_uuid(Uuid) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/appliance/{Uuid}/hardware")
+@mcp.tool()
 def get_appliance_hardware(Uuid) -> str:
     """
     Get Appliance Hardware
@@ -763,7 +763,7 @@ def get_appliance_hardware(Uuid) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/appliance/{applianceName}/bandwidthservers?command={command}&uuid={uuid}")
+@mcp.tool()
 def get_bw_measurement(applianceName, command, uuid) -> str:
     """
     Get BW Measurement
@@ -794,7 +794,7 @@ def get_bw_measurement(applianceName, command, uuid) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/appliance/{applianceName}/capabilities")
+@mcp.tool()
 def get_appliance_capabilities(applianceName) -> str:
     """
     Get Appliance Capabilities
@@ -812,7 +812,7 @@ def get_appliance_capabilities(applianceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/appliance/{applianceName}/live?command={command}&decode={decode}&fetch={fetch}&filters={filters}&uuid={uuid}")
+@mcp.tool()
 def get_appliance_live_status(applianceName, command, decode, fetch, filters, uuid) -> str:
     """
     Get Appliance Live Status
@@ -852,7 +852,7 @@ def get_appliance_live_status(applianceName, command, decode, fetch, filters, uu
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/appliance/{applianceUUID}/syncStatus")
+@mcp.tool()
 def get_appliance_sync_status(applianceUUID) -> str:
     """
     Get Appliance Sync Status
@@ -870,7 +870,7 @@ def get_appliance_sync_status(applianceUUID) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/applianceServices/{applianceName}")
+@mcp.tool()
 def get_appliance_services(applianceName) -> str:
     """
     Get Appliance Services
@@ -888,7 +888,7 @@ def get_appliance_services(applianceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/applianceStatus/{applianceUUID}")
+@mcp.tool()
 def get_appliance_status(applianceUUID) -> str:
     """
     Get Appliance Status
@@ -906,7 +906,7 @@ def get_appliance_status(applianceUUID) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/applianceStatus/{applianceUUID}/brief")
+@mcp.tool()
 def get_appliance_status_brief(applianceUUID) -> str:
     """
     Get Appliance Status Brief
@@ -924,7 +924,7 @@ def get_appliance_status_brief(applianceUUID) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///cloud/systems/getAllApplianceNames")
+@mcp.tool()
 def get_all_appliance_names() -> str:
     """
     Get All Appliance Names
@@ -940,7 +940,7 @@ def get_all_appliance_names() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///cloud/systems/getAllAppliancesBasicDetails?limit={limit}&offset={offset}")
+@mcp.tool()
 def get_all_appliances_basic_details(limit, offset) -> str:
     """
     Get All Appliances Basic Details
@@ -970,7 +970,7 @@ def get_all_appliances_basic_details(limit, offset) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/applianceviolations/{applianceName}")
+@mcp.tool()
 def get_appliance_violations(applianceName) -> str:
     """
     Get Appliance Violations
@@ -988,7 +988,7 @@ def get_appliance_violations(applianceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/enableMonitoring")
+@mcp.tool()
 def get_enable_monitoring() -> str:
     """
     Get Enable Monitoring
@@ -1005,7 +1005,7 @@ def get_enable_monitoring() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/getMonitorPullEnabled/{deviceName}")
+@mcp.tool()
 def get_device_status_pulling_enabled(deviceName) -> str:
     """
     Get Device Status Pulling Enabled
@@ -1023,7 +1023,7 @@ def get_device_status_pulling_enabled(deviceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/health/ike?deviceName={deviceName}")
+@mcp.tool()
 def get_health_ike(deviceName) -> str:
     """
     Get Health IKE
@@ -1050,7 +1050,7 @@ def get_health_ike(deviceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/health/interface?deviceName={deviceName}")
+@mcp.tool()
 def get_health_interface(deviceName) -> str:
     """
     Get Health Interface
@@ -1077,7 +1077,7 @@ def get_health_interface(deviceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/health/path?deviceName={deviceName}")
+@mcp.tool()
 def get_health_path(deviceName) -> str:
     """
     Get Health Path
@@ -1104,7 +1104,7 @@ def get_health_path(deviceName) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/lte/list")
+@mcp.tool()
 def get_devices_in_lte() -> str:
     """
     Get Devices in LTE
@@ -1121,7 +1121,7 @@ def get_devices_in_lte() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/navTree?appUUID={appUUID}&forceRefresh={forceRefresh}&skipCpeNodes={skipCpeNodes}")
+@mcp.tool()
 def get_nav_tree_node(appUUID, forceRefresh, skipCpeNodes) -> str:
     """
     Get Nav Tree Node
@@ -1154,7 +1154,7 @@ def get_nav_tree_node(appUUID, forceRefresh, skipCpeNodes) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/status/headEnds")
+@mcp.tool()
 def get_head_end_status() -> str:
     """
     Get Head-End Status
@@ -1171,7 +1171,7 @@ def get_head_end_status() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/vdStatus")
+@mcp.tool()
 def get_vd_status() -> str:
     """
     Get VD Status
@@ -1188,7 +1188,7 @@ def get_vd_status() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/vdStatus/haDetails")
+@mcp.tool()
 def get_vd_ha_details() -> str:
     """
     Get VD HA Details
@@ -1205,7 +1205,7 @@ def get_vd_ha_details() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/vdStatus/packageInfo")
+@mcp.tool()
 def get_vd_package_info() -> str:
     """
     Get VD Package Info
@@ -1222,7 +1222,7 @@ def get_vd_package_info() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/vdStatus/sysDetails")
+@mcp.tool()
 def get_sys_details() -> str:
     """
     Get Sys Details
@@ -1239,7 +1239,7 @@ def get_sys_details() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///dashboard/vdStatus/sysUptime")
+@mcp.tool()
 def get_sys_uptime() -> str:
     """
     Get Sys Uptime
@@ -1256,7 +1256,7 @@ def get_sys_uptime() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/alarms/page?device_name={device_name}&filtertype={filtertype}&force_refresh={force_refresh}&include_children={include_children}&is_cleared={is_cleared}&is_deep={is_deep}&last_alarm_text={last_alarm_text}&last_change_after={last_change_after}&last_change_before={last_change_before}&last_perceived_severity={last_perceived_severity}&last_status_change={last_status_change}&limit={limit}&offset={offset}&org={org}&show_system_alarm={show_system_alarm}&sort_column={sort_column}&sort_order={sort_order}&type={type}")
+@mcp.tool()
 def filter_paginate_alarm(device_name, filtertype, force_refresh, include_children, is_cleared, is_deep, last_alarm_text, last_change_after, last_change_before, last_perceived_severity, last_status_change, limit, offset, org, show_system_alarm, sort_column, sort_order, type) -> str:
     """
     Filter Paginate Alarm
@@ -1334,7 +1334,7 @@ def filter_paginate_alarm(device_name, filtertype, force_refresh, include_childr
     return response.text
 
 
-@mcp.resource("vnms:///fault/alarm/handling?device_name={device_name}&managed_object={managed_object}&org={org}&type={type}&specific_problem={specific_problem}")
+@mcp.tool()
 def get_alarm_handling(device_name, managed_object, org, type, specific_problem) -> str:
     """
     Get Alarm Handling
@@ -1373,7 +1373,7 @@ def get_alarm_handling(device_name, managed_object, org, type, specific_problem)
     return response.text
 
 
-@mcp.resource("vnms:///fault/alarms/summary/{org}?include_children={include_children}&include_system={include_system}")
+@mcp.tool()
 def get_alarm_summary_per_org(org, include_children, include_system) -> str:
     """
     Get Alarm Summary Per Org
@@ -1404,7 +1404,7 @@ def get_alarm_summary_per_org(org, include_children, include_system) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/alarms/summary")
+@mcp.tool()
 def get_alarm_summary() -> str:
     """
     Get Alarm Summary
@@ -1421,7 +1421,7 @@ def get_alarm_summary() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/types")
+@mcp.tool()
 def get_alarm_types() -> str:
     """
     Get Alarm Types
@@ -1438,7 +1438,7 @@ def get_alarm_types() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/alarms?device_name={device_name}&filtertype={filtertype}&is_cleared={is_cleared}&is_deep={is_deep}&last_alarm_text={last_alarm_text}&last_change_after={last_change_after}&last_change_before={last_change_before}&last_perceived_severity={last_perceived_severity}&last_status_change={last_status_change}&org={org}&type={type}")
+@mcp.tool()
 def get_all_filtered_alarms(device_name, filtertype, is_cleared, is_deep, last_alarm_text, last_change_after, last_change_before, last_perceived_severity, last_status_change, org, type) -> str:
     """
     Get All Filtered Alarms
@@ -1495,7 +1495,7 @@ def get_all_filtered_alarms(device_name, filtertype, is_cleared, is_deep, last_a
     return response.text
 
 
-@mcp.resource("vnms:///fault/analytics/alarms/summary")
+@mcp.tool()
 def get_analytics_alarm_summary() -> str:
     """
     Get Analytics Alarm Summary
@@ -1512,7 +1512,7 @@ def get_analytics_alarm_summary() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/analytics/alarms?search_string={search_string}&severity={severity}")
+@mcp.tool()
 def get_analytics_alarms(search_string, severity) -> str:
     """
     Get Analytics Alarms
@@ -1542,7 +1542,7 @@ def get_analytics_alarms(search_string, severity) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/appliance/alarm_model")
+@mcp.tool()
 def get_appliance_alarm_model() -> str:
     """
     Get Appliance Alarm Model
@@ -1559,7 +1559,7 @@ def get_appliance_alarm_model() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/appliance/types")
+@mcp.tool()
 def get_appliance_alarm_types() -> str:
     """
     Get Appliance Alarm Types
@@ -1576,7 +1576,7 @@ def get_appliance_alarm_types() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/alarms/summary/device/{deviceName}?org={org}")
+@mcp.tool()
 def get_device_alarm_summary(deviceName, org) -> str:
     """
     Get Device Alarm Summary
@@ -1604,7 +1604,7 @@ def get_device_alarm_summary(deviceName, org) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/director/alarms/summary")
+@mcp.tool()
 def get_director_alarm_summary() -> str:
     """
     Get Director Alarm Summary
@@ -1621,7 +1621,7 @@ def get_director_alarm_summary() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/director/alarms?search_string={search_string}&severity={severity}")
+@mcp.tool()
 def get_director_alarms(search_string, severity) -> str:
     """
     Get Director Alarms
@@ -1651,7 +1651,7 @@ def get_director_alarms(search_string, severity) -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/director/fail-over-alarms")
+@mcp.tool()
 def get_director_fail_over_alarms() -> str:
     """
     Get Director Fail Over Alarms
@@ -1668,7 +1668,7 @@ def get_director_fail_over_alarms() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/director/ha-alarms")
+@mcp.tool()
 def get_director_ha_alarms() -> str:
     """
     Get Director HA Alarms
@@ -1685,7 +1685,7 @@ def get_director_ha_alarms() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/director/pop-up-summary")
+@mcp.tool()
 def get_imp_alarm_summary() -> str:
     """
     Get IMP Alarm Summary
@@ -1702,7 +1702,7 @@ def get_imp_alarm_summary() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/director/pop-up")
+@mcp.tool()
 def get_imp_alarms() -> str:
     """
     Get IMP Alarms
@@ -1719,7 +1719,7 @@ def get_imp_alarms() -> str:
     return response.text
 
 
-@mcp.resource("vnms:///fault/alarm/status?device_name={device_name}&managed_object={managed_object}&org={org}&type={type}&specific_problem={specific_problem}")
+@mcp.tool()
 def get_status_change(device_name, managed_object, org, type, specific_problem) -> str:
     """
     Get Status Change
