@@ -9,6 +9,8 @@ import requests
 from starlette.applications import Starlette
 from starlette.routing import Mount, Host
 import uvicorn
+from datetime import datetime
+from dataclasses import dataclass, field
 
 # Disable SSL warnings if you're using verify=False
 import urllib3
@@ -51,10 +53,81 @@ class Concerto:
 
         return self.headers
 
+# ============================================================================
+# SAC Models and Configuration
+# ============================================================================
+
+@dataclass
+class SACConfig:
+    """SAC application configuration"""
+    concerto_url: str = os.environ['CONCERTO_URL'] 
+    username: str = os.environ.get('CONCERTO_USERNAME', os.environ['VN_USERNAME'])
+    password: str = os.environ.get('CONCERTO_PASSWORD', os.environ['VN_PASSWORD'])
+    client_id: str = os.environ.get('VN_CONCERTO_CLIENT_ID', os.environ['VN_CLIENT_ID'])
+    client_secret: str = os.environ.get('VN_CONCERTO_CLIENT_SECRET', os.environ['VN_CLIENT_SECRET'])
+    
+    # Default values
+    default_os_versions: List[str] = field(default_factory=lambda: [
+        "Windows 10", "Windows 11", "Windows 7", "Windows 8", "Windows Server 2019"
+    ])
+
+@dataclass
+class AuthenticationContext:
+    """Holds authentication state"""
+    session: requests.Session
+    headers: Dict[str, str]
+    tenant_uuid: str = ""
+
+@dataclass
+class GatewayInfo:
+    """Gateway information model"""
+    uuid: str
+    name: str
+    vpn_name: str
+    pool_details: List[Dict[str, Any]]
+    labels: List[str] = field(default_factory=list)
+    fqdn: str = ""
+    wan_interfaces: List[Dict] = field(default_factory=list)
+    vpn_infos: List[Dict] = field(default_factory=list)
+    
+    # Pool-specific fields
+    pool_info_uuid: Optional[str] = None
+    pool_name: Optional[str] = None
+    pool_prefix: Optional[str] = None
+    key: Optional[str] = None
+    text: Optional[str] = None
+    value: Optional[str] = None
+
+@dataclass
+class SACResources:
+    """Container for all SAC resources. When asked display the relevant informations"""
+    authentication_profiles: List[Dict[str, Any]]
+    sase_gateways: List[Dict[str, Any]]
+    sase_gateways_full: Dict[str, Any]
+    scim_users: List[Dict[str, Any]]
+    client_rules: List[Dict[str, Any]]
+    client_rules_full: Dict[str, Any]
+    eip_profiles: List[Dict[str, Any]]
+    eip_agents: List[Dict[str, Any]]
+    version_control: int
+
+class Logger:
+    """Simple logging utility"""
+    @staticmethod
+    def log(message: str, level: str = "INFO"):
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        prefix = {
+            "INFO": "✅",
+            "ERROR": "❌",
+            "WARNING": "⚠️",
+            "DEBUG": "🔍"
+        }.get(level, "📝")
+        print(f"[{timestamp}] {prefix} {message}")
+
 concerto = Concerto(url=os.environ['CONCERTO_URL'], username=os.environ['VN_USERNAME'], password=os.environ['VN_PASSWORD'])
 mcp = FastMCP(
-    name="Concerto API Server", 
-    instructions="This server provides optimized access to Versa Concerto APIs through logical groupings", 
+    name="Concerto API Server with SAC Support", 
+    instructions="This server provides optimized access to Versa Concerto APIs through logical groupings, including comprehensive Secure Access Client (SAC) rule management capabilities", 
     dependencies=["requests", "urllib3", "pyjwt"]
 )
 
@@ -65,7 +138,6 @@ def get_header(access_token: str) -> Dict[str, str]:
         "Accept": "application/json",
         "Content-Type": "application/json",
     }
-
 
 async def make_api_request(
     url: str, 
@@ -111,16 +183,531 @@ async def make_api_request(
     except ValueError:
         return {"text": response.text, "status_code": response.status_code}
 
-@mcp.tool()
-async def get_tenant_uuid(self, tenant_name: str) -> str:
-    """Get tenant UUID by name"""
-        
-    ep = f"/v1/tenants/tenant/name/{tenant_name}"
-    op = await make_api_request(concerto.url, ep, concerto.access_token, params=None)
-    print(f"Sridhar ---------> {op}")
+# ============================================================================
+# SAC API Client
+# ============================================================================
+
+class SACApiClient:
+    """Handles all API interactions with the SAC system"""
     
-    uuid = op["tenantInfo"]["uuid"]
-    return uuid
+    def __init__(self, config: SACConfig):
+        self.config = config
+        self._auth_context: Optional[AuthenticationContext] = None
+        
+    @property
+    def auth_context(self) -> AuthenticationContext:
+        """Get or create authentication context"""
+        if not self._auth_context:
+            self._auth_context = self._authenticate()
+        return self._auth_context
+        
+    def _authenticate(self) -> AuthenticationContext:
+        """Authenticate with the SAC API"""
+        session = requests.Session()
+        
+        # Get CSRF token
+        csrf_response = session.get(
+            f"{self.config.concerto_url}/portalapi/swagger-ui.html", 
+            verify=False
+        )
+        
+        # Extract CSRF token using the same method as the working function
+        cookies = session.cookies.get_dict()
+        csrf_token = cookies.get("ECP-CSRF-TOKEN")
+        if not csrf_token:
+            raise ValueError("CSRF token not found")
+            
+        headers = {
+            "accept": "application/json",
+            "content-type": "application/x-www-form-urlencoded",
+            "origin": self.config.concerto_url,
+            "referer": f"{self.config.concerto_url}/portalapi/swagger-ui.html",
+            "x-requested-with": "XMLHttpRequest",
+            "X-CSRF-Token": csrf_token
+        }
+        
+        # Login
+        login_data = {
+            "grant_type": "password",
+            "scope": "global",
+            "username": self.config.username,
+            "password": self.config.password,
+            "client_id": self.config.client_id,
+            "client_secret": self.config.client_secret
+        }
+        
+        # Fixed: Explicitly pass cookies in the POST request
+        token_response = session.post(
+            f"{self.config.concerto_url}/portalapi/v1/auth/token",
+            headers=headers,
+            cookies=session.cookies,  # <-- This was missing!
+            data=login_data,
+            verify=False
+        )
+        token_response.raise_for_status()
+        
+        access_token = token_response.json().get("access_token")
+        headers["authorization"] = f"Bearer {access_token}"
+        headers["accept-language"] = "en"
+        
+        Logger.log("Authentication successful")
+        
+        return AuthenticationContext(
+            session=session,
+            headers=headers
+        )
+    def get_tenant_uuid(self, tenant_name: str) -> str:
+        """Get tenant UUID by name"""
+        # Check if we already have it
+        if self.auth_context.tenant_uuid:
+            return self.auth_context.tenant_uuid
+            
+        url = f"{self.config.concerto_url}/portalapi/v1/tenants/tenant/name/{tenant_name}"
+        response = self.auth_context.session.get(
+            url, 
+            headers=self.auth_context.headers, 
+            verify=False
+        )
+        response.raise_for_status()
+        
+        uuid = response.json().get("tenantInfo", {}).get("uuid")
+        self.auth_context.tenant_uuid = uuid
+        Logger.log(f"Tenant UUID: {uuid}")
+        return uuid
+        
+    def fetch_resource(self, url: str) -> Any:
+        """Fetch a resource from the API"""
+        response = self.auth_context.session.get(
+            url,
+            headers=self.auth_context.headers,
+            verify=False
+        )
+        response.raise_for_status()
+        return response.json()
+        
+    def post_resource(self, url: str, data: Dict[str, Any]) -> requests.Response:
+        """Post data to the API"""
+        headers = self.auth_context.headers.copy()
+        headers["Content-Type"] = "application/json"
+        
+        response = self.auth_context.session.post(
+            url,
+            headers=headers,
+            json=data,
+            verify=False
+        )
+        return response
+        
+    def delete_resource(self, url: str) -> requests.Response:
+        """Delete a resource"""
+        return self.auth_context.session.delete(
+            url,
+            headers=self.auth_context.headers,
+            verify=False
+        )
+        
+    def reset_auth(self):
+        """Reset authentication (force re-authentication on next request)"""
+        self._auth_context = None
+
+# ============================================================================
+# SAC Resource Manager
+# ============================================================================
+
+class ResourceManager:
+    """Manages fetching SAC resources"""
+    
+    def __init__(self, api_client: SACApiClient, config: SACConfig):
+        self.api_client = api_client
+        self.config = config
+        
+    def fetch_all_resources(self, tenant_name: str) -> SACResources:
+        """Fetch all SAC resources and return as structured data"""
+        tenant_uuid = self.api_client.get_tenant_uuid(tenant_name)
+        
+        # Fetch all resources in parallel (conceptually)
+        resources = SACResources(
+            authentication_profiles=self._fetch_authentication_profiles(tenant_uuid),
+            sase_gateways=[], # Will be populated from full data
+            sase_gateways_full=self._fetch_gateways_full(tenant_uuid),
+            scim_users=self._fetch_scim_users(tenant_uuid),
+            client_rules=[], # Will be populated from full data
+            client_rules_full=self._fetch_client_rules_full(tenant_uuid),
+            eip_profiles=self._fetch_eip_profiles(tenant_uuid),
+            eip_agents=self._fetch_eip_agents(tenant_uuid),
+            version_control=0 # Will be set from client rules
+        )
+        
+        # Extract simplified data from full responses
+        resources.sase_gateways = self._extract_gateways(resources.sase_gateways_full)
+        rules_data = self._extract_client_rules(resources.client_rules_full)
+        resources.client_rules = rules_data["rules"]
+        resources.version_control = rules_data["version_control"]
+        
+        return resources
+        
+    def _fetch_authentication_profiles(self, tenant_uuid: str) -> List[Dict[str, Any]]:
+        """Fetch authentication profiles"""
+        url = f"{self.config.concerto_url}/portalapi/v1/tenants/{tenant_uuid}/sase/secure-access-client/summarize/profile?nextWindowNumber=0&windowSize=2147483647"
+        data = self.api_client.fetch_resource(url)
+        return self._extract_name_uuid_items(data)
+        
+    def _fetch_gateways_full(self, tenant_uuid: str) -> Dict[str, Any]:
+        """Fetch full gateway data"""
+        url = f"{self.config.concerto_url}/portalapi/v1/tenants/{tenant_uuid}/regions/sasegateways"
+        return self.api_client.fetch_resource(url)
+        
+    def _fetch_scim_users(self, tenant_uuid: str) -> List[Dict[str, Any]]:
+        """Fetch SCIM users and display the available users when asked by user"""
+        url = f"{self.config.concerto_url}/portalapi/v1/tenants/{tenant_uuid}/sase/scim/summarize?global=&include-user-group=true"
+        data = self.api_client.fetch_resource(url)
+        
+        users = []
+        for entry in data.get("data", []):
+            for user in entry.get("users", []):
+                users.append({
+                    "user_name": user.get("user_name"),
+                    "display_name": user.get("display_name"),
+                    "email": user.get("email")
+                })
+        return users
+        
+    def _fetch_client_rules_full(self, tenant_uuid: str) -> Dict[str, Any]:
+        """Fetch full client rules data"""
+        url = f"{self.config.concerto_url}/portalapi/v1/tenants/{tenant_uuid}/sase/secure-access-client/summarize/rule?nextWindowNumber=0&windowSize=2147483647"
+        return self.api_client.fetch_resource(url)
+        
+    def _fetch_eip_profiles(self, tenant_uuid: str) -> List[Dict[str, Any]]:
+        """Fetch all EIP profiles and display for the user to choose when asked. Try to filter as well."""
+        url = f"{self.config.concerto_url}/portalapi/v1/tenants/{tenant_uuid}/director-mapping/eip-profile?nextWindowNumber=0&windowSize=2147483647"
+        data = self.api_client.fetch_resource(url)
+        return self._extract_name_uuid_items(data)
+        
+    def _fetch_eip_agents(self, tenant_uuid: str) -> List[Dict[str, Any]]:
+        """Fetch all EIP agents"""
+        url = f"{self.config.concerto_url}/portalapi/v1/tenants/{tenant_uuid}/director-mapping/eip-agent?nextWindowNumber=0&windowSize=2147483647"
+        data = self.api_client.fetch_resource(url)
+        return self._extract_name_uuid_items(data)
+        
+    def _extract_name_uuid_items(self, data: Any) -> List[Dict[str, str]]:
+        """Extract items with name and uuid from response data"""
+        items = data if isinstance(data, list) else data.get("data", [])
+        return [
+            {"name": item.get("name"), "uuid": item.get("uuid")}
+            for item in items
+            if item.get("name") and item.get("uuid")
+        ]
+        
+    def _extract_gateways(self, gateways_full: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Extract gateway names and UUIDs from full data"""
+        gateways = []
+        for region in gateways_full.get("data", []):
+            for gateway in region.get("saseGatewayInfos", []):
+                gateways.append({
+                    "gatewayName": gateway.get("gatewayName"),
+                    "gatewayUUID": gateway.get("gatewayUUID")
+                })
+        return gateways
+        
+    def _extract_client_rules(self, rules_full: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract client rules and version control from full data"""
+        rules = [
+            {"name": rule.get("name"), "uuid": rule.get("uuid")}
+            for rule in rules_full.get("data", [])
+            if rule.get("name") and rule.get("uuid")
+        ]
+        
+        version_control = rules_full.get("versionControl", 0)
+        
+        return {
+            "rules": rules,
+            "version_control": version_control
+        }
+
+# ============================================================================
+# SAC Rule Builder
+# ============================================================================
+
+class SACRuleBuilder:
+    """Builds SAC rule payloads"""
+    
+    def __init__(self, config: SACConfig):
+        self.config = config
+        
+    def build_rule(
+        self,
+        resources: SACResources,
+        rule_name: str,
+        selected_users: Optional[List[str]] = None,
+        selected_os: Optional[List[str]] = None,
+        add_eip: bool = False,
+        eip_agent_name: Optional[str] = None,
+        eip_profile_names: Optional[List[str]] = None,
+        place_rule_top: bool = True
+    ) -> Dict[str, Any]:
+        """Build a SAC rule payload"""
+        
+        # Set defaults
+        if not selected_users:
+            selected_users = [user["user_name"] for user in resources.scim_users]
+        if not selected_os:
+            selected_os = self.config.default_os_versions
+            
+        # Build gateway infos
+        gateway_infos = self._build_gateway_infos(
+            resources.sase_gateways, 
+            resources.sase_gateways_full
+        )
+        if not gateway_infos:
+            raise ValueError("No valid gateways found")
+            
+        # Build payload
+        payload = self._create_base_payload(
+            rule_name=rule_name,
+            sac_profile_uuid=resources.authentication_profiles[0]["uuid"],
+            gateway_infos=gateway_infos,
+            vpn_name=gateway_infos[0]["vpnName"],
+            selected_users=selected_users,
+            selected_os=selected_os,
+            scim_users=resources.scim_users,
+            version_control=resources.version_control,
+            place_rule_top=place_rule_top
+        )
+        
+        # Add EIP if requested
+        if add_eip:
+            self._add_eip_config(
+                payload, 
+                eip_agent_name, 
+                eip_profile_names,
+                resources.eip_agents,
+                resources.eip_profiles
+            )
+            
+        return payload
+        
+    def _build_gateway_infos(
+        self, 
+        gateways: List[Dict], 
+        gateways_full: Dict
+    ) -> List[Dict[str, Any]]:
+        """Build gateway information objects"""
+        gateway_infos = []
+        
+        for gateway in gateways:
+            gateway_name = gateway["gatewayName"]
+            
+            # Find full gateway info
+            for region in gateways_full.get("data", []):
+                for gw_info in region.get("saseGatewayInfos", []):
+                    if gw_info.get("gatewayName") == gateway_name:
+                        gateway_info = self._create_gateway_info(gw_info)
+                        gateway_infos.append(gateway_info)
+                        break
+                        
+        return gateway_infos
+        
+    def _create_gateway_info(self, gw_data: Dict) -> Dict[str, Any]:
+        """Create gateway info dict from raw data"""
+        vpn_info = gw_data.get("vpnInfos", [{}])[0]
+        vpn_name = vpn_info.get("vpnName", "")
+        pools = vpn_info.get("tenantSaseGatewayVPNClientPoolInfos", [])
+        
+        gateway_info = {
+            "gatewayUUID": gw_data.get("gatewayUUID"),
+            "gatewayName": gw_data.get("gatewayName"),
+            "vpnName": vpn_name,
+            "poolDetails": [
+                {
+                    "poolName": pool.get("poolName"),
+                    "poolPrefix": pool.get("poolPrefix"),
+                    "poolInfoUUID": pool.get("poolInfoUUID")
+                }
+                for pool in pools
+            ] if pools else [],
+            "gatewayLabels": gw_data.get("gatewayLabels", []),
+            "gwFQDN": gw_data.get("gwFQDN", ""),
+            "wanInterfaces": gw_data.get("wanInterfaces", []),
+            "vpnInfos": gw_data.get("vpnInfos", [])
+        }
+        
+        # Add pool-specific fields if pools exist
+        if pools:
+            first_pool = pools[0]
+            gateway_info.update({
+                "poolInfoUUID": first_pool.get("poolInfoUUID"),
+                "poolName": first_pool.get("poolName"),
+                "poolPrefix": first_pool.get("poolPrefix"),
+                "key": f"{first_pool.get('poolPrefix')}-{first_pool.get('poolName')}",
+                "text": f"{first_pool.get('poolPrefix')}-{first_pool.get('poolName')}",
+                "value": first_pool.get("poolPrefix")
+            })
+            
+        return gateway_info
+    def _build_gateway_groups(self, gateway_infos: List[Dict]) -> List[str]:
+        """Build gateway groups from actual gateway labels"""
+        gateway_groups = set()
+        
+        # Extract labels from all gateways
+        for gateway_info in gateway_infos:
+            labels = gateway_info.get("gatewayLabels", [])
+            if labels:
+                # Handle different label formats that might be returned by the API
+                for label in labels:
+                    if isinstance(label, str):
+                        gateway_groups.add(label)
+                    elif isinstance(label, dict):
+                        # If labels are objects, extract relevant fields
+                        label_name = label.get("name") or label.get("label") or label.get("value")
+                        if label_name:
+                            gateway_groups.add(label_name)
+        
+        # Return as sorted list for consistency
+        return sorted(list(gateway_groups))        
+    def _create_base_payload(
+        self,
+        rule_name: str,
+        sac_profile_uuid: str,
+        gateway_infos: List[Dict],
+        vpn_name: str,
+        selected_users: List[str],
+        selected_os: List[str],
+        scim_users: List[Dict],
+        version_control: int,
+        place_rule_top: bool
+    ) -> Dict[str, Any]:
+        gateway_groups = self._build_gateway_groups(gateway_infos)
+        """Create base rule payload"""
+        return {
+            "name": rule_name,
+            "version": "1",
+            "attributes": {
+                "action": {
+                    "value": {
+                        "clientConfiguration": {
+                            "clientControl": {
+                                "passwordExpiryWarnBefore": 10,
+                                "portalLifetime": 1440,
+                                "maxiumNumber": 10,
+                                "alwaysOn": True,
+                                "displayGateway": True,
+                                "allowClientCustomization": True,
+                                "rememberCredentials": True,
+                                "alwaysOnDetail": {
+                                    "disconnect": "Interval",
+                                    "intervalValue": 300,
+                                    "overrideEnabled": True,
+                                    "override": 120,
+                                    "fail": "Open"
+                                },
+                                "tunnelMonitoringDetail": {
+                                    "interval": 60,
+                                    "intervalRetry": 10,
+                                    "connectionRetry": 5
+                                },
+                                "reconnectDetail": {
+                                    "interval": 10,
+                                    "retry-count": 5
+                                }
+                            },
+                            "mfa": {"enabled": False},
+                            "vpnType": {"ipSec": True, "protocolOrder": ["IPSEC"]},
+                            "profileUuid": sac_profile_uuid
+                        },
+                        "gateway": {
+                            "gatewayInfos": gateway_infos,
+                            "gatewayGroups": gateway_groups,
+                            "vpnName": vpn_name
+                        },
+                        "trafficSteering": {
+                            "subscription": "vsa-swg",
+                            "action": "force-tunnel",
+                            "actionMessage": f"Welcome to {rule_name}"
+                        }
+                    }
+                },
+                "match": {
+                    "value": {
+                        "sourceEndpoint": {
+                            "operatingSystems": [
+                                {"operatingSystem": "Windows", "operatingVersion": selected_os}
+                            ]
+                        },
+                        "users": {
+                            "users": [
+                                {
+                                    "name": next(
+                                        (u["display_name"] for u in scim_users if u["user_name"] == user),
+                                        user
+                                    ),
+                                    "id": user,
+                                    "description": "testing"
+                                }
+                                for user in selected_users
+                            ],
+                            "profile": {
+                                "type": "SASE_SCIM_AUTHENTICATION",
+                                "subtype": "SASE_SCIM_AUTHENTICATION"
+                            },
+                            "userMatchType": "selected"
+                        },
+                        "deviceStatus": {"type": "all-devices"},
+                        "sourceAddress": {"addressNegate": False}
+                    }
+                }
+            },
+            "initialFormMode": "CREATE",
+            "enabled": True,
+            "order": {"top": place_rule_top} if place_rule_top else {"bottom": True},
+            "subtype": "RULE",
+            "type": "CLIENT_ACCESS",
+            "formMode": "CREATE",
+            "deploy": False,
+            "versionControl": version_control
+        }
+        
+    def _add_eip_config(
+        self,
+        payload: Dict[str, Any],
+        eip_agent_name: Optional[str],
+        eip_profile_names: Optional[List[str]],
+        eip_agents: List[Dict[str, str]],
+        eip_profiles: List[Dict[str, str]]
+    ) -> None:
+        """Add EIP configuration to payload"""
+        if eip_agent_name:
+            agent = next(
+                (a for a in eip_agents if a["name"] == eip_agent_name),
+                None
+            )
+            if not agent:
+                raise ValueError(f"EIP Agent '{eip_agent_name}' not found")
+                
+            payload["attributes"]["action"]["value"]["eip"] = {
+                "type": "predefined",
+                "uuid": agent["uuid"],
+                "name": agent["name"]
+            }
+            
+        if eip_profile_names:
+            matched_profiles = []
+            
+            for profile_name in eip_profile_names:
+                profile = next(
+                    (p for p in eip_profiles if p["name"] == profile_name),
+                    None
+                )
+                if not profile:
+                    raise ValueError(f"EIP Profile '{profile_name}' not found")
+                    
+                matched_profiles.append({
+                    "uuid": profile["uuid"],
+                    "name": profile["name"]
+                })
+                
+            payload["attributes"]["match"]["value"]["eip"] = {
+                "predefined": matched_profiles
+            }
 
 @mcp.tool()
 async def manage_notifications(
@@ -655,6 +1242,216 @@ async def manage_tenant_resources(
         return {"error": f"Invalid action. Available actions: get_info, list_files, list_subprofiles, list_global_settings, list_sites, get_site, list_profiles"}
     
     return await make_api_request(concerto.url, endpoint, concerto.access_token)
+
+# ============================================================================
+# SAC MCP Tools Setup
+# ============================================================================
+
+# Initialize SAC components
+sac_config = SACConfig()
+sac_api_client = SACApiClient(sac_config)
+sac_resource_manager = ResourceManager(sac_api_client, sac_config)
+sac_rule_builder = SACRuleBuilder(sac_config)
+
+@mcp.tool()
+async def fetch_sac_resources(tenant_name: str) -> Dict[str, Any]:
+    """Fetch and display current SAC resources"""
+    try:
+        resources = sac_resource_manager.fetch_all_resources(tenant_name)
+        
+        return {
+            "status": "success",
+            "data": {
+                "authentication_profiles": {
+                    "count": len(resources.authentication_profiles),
+                    "profiles": resources.authentication_profiles
+                },
+                "gateways": {
+                    "count": len(resources.sase_gateways),
+                    "gateways": resources.sase_gateways
+                },
+                "scim_users": {
+                    "count": len(resources.scim_users),
+                    "users": resources.scim_users
+                },
+                "client_rules": {
+                    "count": len(resources.client_rules),
+                    "rules": resources.client_rules
+                },
+                "eip_profiles": {
+                    "count": len(resources.eip_profiles),
+                    "profiles": resources.eip_profiles  # This will show all EIP profiles with names & UUIDs
+                },
+                "eip_agents": {
+                    "count": len(resources.eip_agents),
+                    "agents": resources.eip_agents      # This will show all EIP agents with names & UUIDs
+                },
+                "version_control": resources.version_control
+            }
+        }
+    except Exception as e:
+        Logger.log(f"Error fetching resources: {str(e)}", "ERROR")
+        return {"status": "error", "message": str(e)}
+
+@mcp.tool()
+async def configure_sac_rule_default(
+    tenant_name: str, 
+    rule_name: str
+) -> Dict[str, Any]:
+    """Configure SAC Rule using ALL SCIM users and default Windows OS versions"""
+    return await configure_sac_rule_custom(
+        tenant_name=tenant_name,
+        rule_name=rule_name,
+        selected_usernames=[],
+        selected_operating_systems=[]
+    )
+
+@mcp.tool()
+async def configure_sac_rule_custom(
+    tenant_name: str,
+    rule_name: str,
+    selected_usernames: List[str],
+    selected_operating_systems: List[str],
+    place_rule_top: bool = True
+) -> Dict[str, Any]:
+    """Configure SAC Rule with specific users and operating systems"""
+    try:
+        # Fetch all resources
+        resources = sac_resource_manager.fetch_all_resources(tenant_name)
+        
+        # Build rule
+        payload = sac_rule_builder.build_rule(
+            resources=resources,
+            rule_name=rule_name,
+            selected_users=selected_usernames if selected_usernames else None,
+            selected_os=selected_operating_systems if selected_operating_systems else None,
+            place_rule_top=place_rule_top
+        )
+        
+        # Post rule
+        return await _post_sac_rule(payload)
+        
+    except Exception as e:
+        Logger.log(f"Error configuring rule: {str(e)}", "ERROR")
+        return {"status": "error", "message": str(e)}
+
+@mcp.tool()
+async def configure_sac_rule_with_eip(
+    tenant_name: str,
+    rule_name: str,
+    add_eip_config: bool = False,
+    selected_eip_agent_name: str = "",
+    selected_eip_profile_names: str = "",
+    selected_scim_usernames: str = "",
+    selected_os_versions: str = "",
+    place_rule_top: bool = True
+) -> Dict[str, Any]:
+    """Build SAC rule payload with optional EIP configs"""
+    try:
+        # Parse comma-separated strings
+        users = [u.strip() for u in selected_scim_usernames.split(",") if u.strip()] if selected_scim_usernames else []
+        os_versions = [o.strip() for o in selected_os_versions.split(",") if o.strip()] if selected_os_versions else []
+        eip_profiles = [p.strip() for p in selected_eip_profile_names.split(",") if p.strip()] if selected_eip_profile_names else []
+        
+        # Fetch all resources
+        resources = sac_resource_manager.fetch_all_resources(tenant_name)
+        
+        # Build rule
+        payload = sac_rule_builder.build_rule(
+            resources=resources,
+            rule_name=rule_name,
+            selected_users=users if users else None,
+            selected_os=os_versions if os_versions else None,
+            add_eip=add_eip_config,
+            eip_agent_name=selected_eip_agent_name if selected_eip_agent_name else None,
+            eip_profile_names=eip_profiles if eip_profiles else None,
+            place_rule_top=place_rule_top
+        )
+        
+        # Post rule
+        return await _post_sac_rule(payload)
+        
+    except Exception as e:
+        Logger.log(f"Error configuring rule with EIP: {str(e)}", "ERROR")
+        return {"status": "error", "message": str(e)}
+
+@mcp.tool()
+async def delete_sac_rules(
+    tenant_name: str,
+    rule_names: str
+) -> Dict[str, Any]:
+    """Delete one or more SAC rules based on names (comma-separated)"""
+    try:
+        # Fetch current resources
+        resources = sac_resource_manager.fetch_all_resources(tenant_name)
+        
+        # Parse rule names
+        rule_list = [r.strip() for r in rule_names.split(",") if r.strip()]
+        
+        # Determine rules to delete
+        if "all" in [r.lower() for r in rule_list]:
+            rules_to_delete = resources.client_rules
+        else:
+            rules_to_delete = [r for r in resources.client_rules if r["name"] in rule_list]
+            
+        if not rules_to_delete:
+            return {"status": "error", "message": "No matching rules found to delete"}
+            
+        # Delete rules
+        deletion_results = []
+        for rule in rules_to_delete:
+            result = await _delete_single_sac_rule(rule)
+            deletion_results.append(result)
+            
+        return {"status": "completed", "results": deletion_results}
+        
+    except Exception as e:
+        Logger.log(f"Error deleting rules: {str(e)}", "ERROR")
+        return {"status": "error", "message": str(e)}
+
+async def _post_sac_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Post a SAC rule to the API"""
+    try:
+        url = f"{sac_config.concerto_url}/portalapi/v1/tenants/{sac_api_client.auth_context.tenant_uuid}/sase/secure-access-client/rule"
+        response = sac_api_client.post_resource(url, payload)
+        response.raise_for_status()
+        
+        Logger.log("Rule posted successfully")
+        return {"status": "success", "response": response.json()}
+        
+    except requests.exceptions.HTTPError as e:
+        Logger.log(f"HTTP Error posting rule: {str(e)}", "ERROR")
+        try:
+            return {"status": "error", "message": response.json()}
+        except:
+            return {"status": "error", "message": response.text}
+            
+    except Exception as e:
+        Logger.log(f"Error posting rule: {str(e)}", "ERROR")
+        return {"status": "error", "message": str(e)}
+
+async def _delete_single_sac_rule(rule: Dict[str, str]) -> Dict[str, Any]:
+    """Delete a single SAC rule"""
+    try:
+        url = f"{sac_config.concerto_url}/portalapi/v1/tenants/{sac_api_client.auth_context.tenant_uuid}/sase/secure-access-client/{rule['uuid']}"
+        response = sac_api_client.delete_resource(url)
+        
+        if response.status_code == 200:
+            Logger.log(f"Deleted rule '{rule['name']}' successfully")
+            return {"rule": rule["name"], "status": "deleted"}
+        else:
+            return {
+                "rule": rule["name"],
+                "status": "error",
+                "details": f"Status Code: {response.status_code} - {response.text}"
+            }
+            
+    except Exception as e:
+        return {
+            "rule": rule["name"],
+            "status": "error",
+            "details": str(e)
+        }
 
 app = Starlette(
     routes=[

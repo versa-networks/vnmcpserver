@@ -49,10 +49,17 @@ This server uses [uv](https://docs.astral.sh/uv/guides/install-python/) for Pyth
    source mcp.env
    ```
 
-3. Run the SSE server:
+3. Run your choice of  SSE server:
+   For director integration:
    ```
    uv run main_sse.py
    ```
+
+   For Concerto integration:
+   ```
+   uv run main_concerto_sse.py
+   ```
+   
 
 4. Configure your Claude Desktop by setting the following in `claude_desktop_config.json`:
    ```json
